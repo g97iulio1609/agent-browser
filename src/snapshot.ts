@@ -11,9 +11,10 @@
  *   - textbox "Email" [ref=e3]
  *
  * Usage:
- *   agent-browser snapshot          # Get snapshot with refs
- *   agent-browser click @e2         # Click element by ref
- *   agent-browser fill @e3 "test"   # Fill element by ref
+ *   agent-browser snapshot              # Full snapshot
+ *   agent-browser snapshot -i           # Interactive elements only
+ *   agent-browser snapshot --depth 3    # Limit depth
+ *   agent-browser click @e2             # Click element by ref
  */
 
 import type { Page, Locator } from 'playwright-core';
@@ -29,6 +30,17 @@ export interface RefMap {
 export interface EnhancedSnapshot {
   tree: string;
   refs: RefMap;
+}
+
+export interface SnapshotOptions {
+  /** Only include interactive elements (buttons, links, inputs, etc.) */
+  interactive?: boolean;
+  /** Maximum depth of tree to include (0 = root only) */
+  maxDepth?: number;
+  /** Remove structural elements without meaningful content */
+  compact?: boolean;
+  /** CSS selector to scope the snapshot */
+  selector?: string;
 }
 
 // Counter for generating refs
@@ -88,6 +100,30 @@ const CONTENT_ROLES = new Set([
 ]);
 
 /**
+ * Roles that are purely structural (can be filtered in compact mode)
+ */
+const STRUCTURAL_ROLES = new Set([
+  'generic',
+  'group',
+  'list',
+  'table',
+  'row',
+  'rowgroup',
+  'grid',
+  'treegrid',
+  'menu',
+  'menubar',
+  'toolbar',
+  'tablist',
+  'tree',
+  'directory',
+  'document',
+  'application',
+  'presentation',
+  'none',
+]);
+
+/**
  * Build a selector string for storing in ref map
  */
 function buildSelector(role: string, name?: string): string {
@@ -99,95 +135,209 @@ function buildSelector(role: string, name?: string): string {
 }
 
 /**
- * Get enhanced snapshot with refs
- *
- * Uses ariaSnapshot() which returns ARIA tree, then parses and adds refs
+ * Get enhanced snapshot with refs and optional filtering
  */
-export async function getEnhancedSnapshot(page: Page): Promise<EnhancedSnapshot> {
+export async function getEnhancedSnapshot(
+  page: Page,
+  options: SnapshotOptions = {}
+): Promise<EnhancedSnapshot> {
   resetRefs();
   const refs: RefMap = {};
 
   // Get ARIA snapshot from Playwright
-  const ariaTree = await page.locator(':root').ariaSnapshot();
+  const locator = options.selector ? page.locator(options.selector) : page.locator(':root');
+  const ariaTree = await locator.ariaSnapshot();
 
   if (!ariaTree) {
     return {
-      tree: '(empty page)',
+      tree: '(empty)',
       refs: {},
     };
   }
 
-  // Parse the ARIA tree and add refs to interactive elements
-  const enhancedTree = addRefsToAriaTree(ariaTree, refs);
+  // Parse and enhance the ARIA tree
+  const enhancedTree = processAriaTree(ariaTree, refs, options);
 
   return { tree: enhancedTree, refs };
 }
 
 /**
- * Parse ARIA snapshot and add refs to interactive elements
- *
- * Input format from ariaSnapshot():
- *   - document:
- *     - heading "Example Domain" [level=1]
- *     - paragraph: This is text
- *     - link "More info":
- *       - /url: https://...
+ * Process ARIA snapshot: add refs and apply filters
  */
-function addRefsToAriaTree(ariaTree: string, refs: RefMap): string {
+function processAriaTree(ariaTree: string, refs: RefMap, options: SnapshotOptions): string {
   const lines = ariaTree.split('\n');
-  const enhancedLines: string[] = [];
+  const result: string[] = [];
 
-  for (const line of lines) {
-    // Match lines like:
-    //   - button "Submit"
-    //   - heading "Title" [level=1]
-    //   - link "Click me":
-    //   - textbox "Email"
-    const match = line.match(/^(\s*-\s*)(\w+)(?:\s+"([^"]*)")?(.*)$/);
-
-    if (match) {
-      const [, prefix, role, name, suffix] = match;
+  // For interactive-only mode, we collect just interactive elements
+  if (options.interactive) {
+    for (const line of lines) {
+      const match = line.match(/^(\s*-\s*)(\w+)(?:\s+"([^"]*)")?(.*)$/);
+      if (!match) continue;
+      
+      const [, , role, name, suffix] = match;
       const roleLower = role.toLowerCase();
-
-      // Skip metadata lines (like /url:)
-      if (role.startsWith('/')) {
-        enhancedLines.push(line);
-        continue;
-      }
-
-      // Add ref for interactive or named content elements
-      const isInteractive = INTERACTIVE_ROLES.has(roleLower);
-      const isNamedContent = CONTENT_ROLES.has(roleLower) && name;
-
-      if (isInteractive || isNamedContent) {
+      
+      if (INTERACTIVE_ROLES.has(roleLower)) {
         const ref = nextRef();
-
-        // Store ref data for later locator creation
         refs[ref] = {
           selector: buildSelector(roleLower, name),
           role: roleLower,
           name,
         };
-
-        // Insert ref tag before any trailing content (like [level=1] or :)
-        const refTag = `[ref=${ref}]`;
-
-        // Build the enhanced line
-        let enhanced = `${prefix}${role}`;
+        
+        let enhanced = `- ${role}`;
         if (name) enhanced += ` "${name}"`;
-        enhanced += ` ${refTag}`;
-        if (suffix) enhanced += suffix;
-
-        enhancedLines.push(enhanced);
-      } else {
-        enhancedLines.push(line);
+        enhanced += ` [ref=${ref}]`;
+        if (suffix && suffix.includes('[')) enhanced += suffix;
+        
+        result.push(enhanced);
       }
-    } else {
-      enhancedLines.push(line);
+    }
+    return result.join('\n') || '(no interactive elements)';
+  }
+
+  // Normal processing with depth/compact filters
+  for (const line of lines) {
+    const processed = processLine(line, refs, options);
+    if (processed !== null) {
+      result.push(processed);
     }
   }
 
-  return enhancedLines.join('\n');
+  // If compact mode, remove empty structural elements
+  if (options.compact) {
+    return compactTree(result.join('\n'));
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Get indentation level (number of spaces / 2)
+ */
+function getIndentLevel(line: string): number {
+  const match = line.match(/^(\s*)/);
+  return match ? Math.floor(match[1].length / 2) : 0;
+}
+
+/**
+ * Process a single line: add ref if needed, filter if requested
+ */
+function processLine(
+  line: string,
+  refs: RefMap,
+  options: SnapshotOptions
+): string | null {
+  const depth = getIndentLevel(line);
+
+  // Check max depth
+  if (options.maxDepth !== undefined && depth > options.maxDepth) {
+    return null;
+  }
+
+  // Match lines like:
+  //   - button "Submit"
+  //   - heading "Title" [level=1]
+  //   - link "Click me":
+  const match = line.match(/^(\s*-\s*)(\w+)(?:\s+"([^"]*)")?(.*)$/);
+
+  if (!match) {
+    // Metadata lines (like /url:) or text content
+    if (options.interactive) {
+      // In interactive mode, only keep metadata under interactive elements
+      return null;
+    }
+    return line;
+  }
+
+  const [, prefix, role, name, suffix] = match;
+  const roleLower = role.toLowerCase();
+
+  // Skip metadata lines (like /url:)
+  if (role.startsWith('/')) {
+    return line;
+  }
+
+  const isInteractive = INTERACTIVE_ROLES.has(roleLower);
+  const isContent = CONTENT_ROLES.has(roleLower);
+  const isStructural = STRUCTURAL_ROLES.has(roleLower);
+
+  // In interactive-only mode, filter non-interactive elements
+  if (options.interactive && !isInteractive) {
+    return null;
+  }
+
+  // In compact mode, skip unnamed structural elements
+  if (options.compact && isStructural && !name) {
+    return null;
+  }
+
+  // Add ref for interactive or named content elements
+  const shouldHaveRef = isInteractive || (isContent && name);
+
+  if (shouldHaveRef) {
+    const ref = nextRef();
+
+    refs[ref] = {
+      selector: buildSelector(roleLower, name),
+      role: roleLower,
+      name,
+    };
+
+    // Build enhanced line with ref
+    let enhanced = `${prefix}${role}`;
+    if (name) enhanced += ` "${name}"`;
+    enhanced += ` [ref=${ref}]`;
+    if (suffix) enhanced += suffix;
+
+    return enhanced;
+  }
+
+  return line;
+}
+
+/**
+ * Remove empty structural branches in compact mode
+ */
+function compactTree(tree: string): string {
+  const lines = tree.split('\n');
+  const result: string[] = [];
+  
+  // Simple pass: keep lines that have content or refs
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Always keep lines with refs
+    if (line.includes('[ref=')) {
+      result.push(line);
+      continue;
+    }
+    
+    // Keep lines with text content (after :)
+    if (line.includes(':') && !line.endsWith(':')) {
+      result.push(line);
+      continue;
+    }
+    
+    // Check if this structural element has children with refs
+    const currentIndent = getIndentLevel(line);
+    let hasRelevantChildren = false;
+    
+    for (let j = i + 1; j < lines.length; j++) {
+      const childIndent = getIndentLevel(lines[j]);
+      if (childIndent <= currentIndent) break;
+      if (lines[j].includes('[ref=')) {
+        hasRelevantChildren = true;
+        break;
+      }
+    }
+    
+    if (hasRelevantChildren) {
+      result.push(line);
+    }
+  }
+  
+  return result.join('\n');
 }
 
 /**
@@ -204,4 +354,27 @@ export function parseRef(arg: string): string | null {
     return arg;
   }
   return null;
+}
+
+/**
+ * Get snapshot statistics
+ */
+export function getSnapshotStats(tree: string, refs: RefMap): {
+  lines: number;
+  chars: number;
+  tokens: number;
+  refs: number;
+  interactive: number;
+} {
+  const interactive = Object.values(refs).filter(r => 
+    INTERACTIVE_ROLES.has(r.role)
+  ).length;
+  
+  return {
+    lines: tree.split('\n').length,
+    chars: tree.length,
+    tokens: Math.ceil(tree.length / 4),
+    refs: Object.keys(refs).length,
+    interactive,
+  };
 }

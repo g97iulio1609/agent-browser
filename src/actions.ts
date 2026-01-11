@@ -449,11 +449,16 @@ async function handleScreenshot(
 }
 
 async function handleSnapshot(
-  command: Command & { action: 'snapshot' },
+  command: Command & { action: 'snapshot'; interactive?: boolean; maxDepth?: number; compact?: boolean; selector?: string },
   browser: BrowserManager
 ): Promise<Response<SnapshotData>> {
-  // Use enhanced snapshot with refs
-  const { tree, refs } = await browser.getSnapshot();
+  // Use enhanced snapshot with refs and optional filtering
+  const { tree, refs } = await browser.getSnapshot({
+    interactive: command.interactive,
+    maxDepth: command.maxDepth,
+    compact: command.compact,
+    selector: command.selector,
+  });
 
   // Simplify refs for output (just role and name)
   const simpleRefs: Record<string, { role: string; name?: string }> = {};

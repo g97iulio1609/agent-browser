@@ -140,118 +140,149 @@ async function sendCommand(cmd: Record<string, unknown>): Promise<Response> {
         cleanup();
         reject(new Error('Timeout'));
       }
-    }, 15000);
+    }, 30000);
   });
 }
 
 // ============================================================================
-// CLI Parsing
+// Command Parsing
 // ============================================================================
 
-function parseArgs(args: string[]): { cmd: Record<string, unknown> | null; json: boolean } {
-  const json = args.includes('--json');
-  const cleanArgs = args.filter(a => !a.startsWith('--'));
+function parseCommand(parts: string[]): Record<string, unknown> | null {
+  if (parts.length === 0) return null;
   
-  if (cleanArgs.length === 0) return { cmd: null, json };
-  
-  const command = cleanArgs[0];
-  const rest = cleanArgs.slice(1);
+  const command = parts[0];
+  const rest = parts.slice(1);
   const id = Math.random().toString(36).slice(2, 10);
 
   switch (command) {
     case 'open':
     case 'goto':
     case 'navigate':
-      return { cmd: { id, action: 'navigate', url: rest[0]?.startsWith('http') ? rest[0] : `https://${rest[0]}` }, json };
+      return { id, action: 'navigate', url: rest[0]?.startsWith('http') ? rest[0] : `https://${rest[0]}` };
     
     case 'click':
-      return { cmd: { id, action: 'click', selector: rest[0] }, json };
+      return { id, action: 'click', selector: rest[0] };
     
     case 'fill':
-      return { cmd: { id, action: 'fill', selector: rest[0], value: rest.slice(1).join(' ') }, json };
+      return { id, action: 'fill', selector: rest[0], value: rest.slice(1).join(' ') };
     
     case 'type':
-      return { cmd: { id, action: 'type', selector: rest[0], text: rest.slice(1).join(' ') }, json };
+      return { id, action: 'type', selector: rest[0], text: rest.slice(1).join(' ') };
     
     case 'hover':
-      return { cmd: { id, action: 'hover', selector: rest[0] }, json };
+      return { id, action: 'hover', selector: rest[0] };
     
-    case 'snapshot':
-      return { cmd: { id, action: 'snapshot' }, json };
+    case 'snapshot': {
+      const opts: Record<string, unknown> = { id, action: 'snapshot' };
+      // Parse snapshot options from rest args
+      for (let i = 0; i < rest.length; i++) {
+        const arg = rest[i];
+        if (arg === '-i' || arg === '--interactive') {
+          opts.interactive = true;
+        } else if (arg === '-c' || arg === '--compact') {
+          opts.compact = true;
+        } else if (arg === '--depth' || arg === '-d') {
+          opts.maxDepth = parseInt(rest[++i], 10);
+        } else if (arg === '--selector' || arg === '-s') {
+          opts.selector = rest[++i];
+        }
+      }
+      return opts;
+    }
     
     case 'screenshot':
-      return { cmd: { id, action: 'screenshot', path: rest[0] }, json };
+      return { id, action: 'screenshot', path: rest[0] };
     
     case 'close':
     case 'quit':
-      return { cmd: { id, action: 'close' }, json };
+      return { id, action: 'close' };
     
     case 'get':
-      if (rest[0] === 'text') return { cmd: { id, action: 'gettext', selector: rest[1] }, json };
-      if (rest[0] === 'url') return { cmd: { id, action: 'url' }, json };
-      if (rest[0] === 'title') return { cmd: { id, action: 'title' }, json };
-      return { cmd: null, json };
+      if (rest[0] === 'text') return { id, action: 'gettext', selector: rest[1] };
+      if (rest[0] === 'url') return { id, action: 'url' };
+      if (rest[0] === 'title') return { id, action: 'title' };
+      return null;
     
     case 'press':
-      return { cmd: { id, action: 'press', key: rest[0] }, json };
+      return { id, action: 'press', key: rest[0] };
     
     case 'wait':
       if (/^\d+$/.test(rest[0])) {
-        return { cmd: { id, action: 'wait', timeout: parseInt(rest[0], 10) }, json };
+        return { id, action: 'wait', timeout: parseInt(rest[0], 10) };
       }
-      return { cmd: { id, action: 'wait', selector: rest[0] }, json };
+      return { id, action: 'wait', selector: rest[0] };
     
     case 'back':
-      return { cmd: { id, action: 'back' }, json };
+      return { id, action: 'back' };
     
     case 'forward':
-      return { cmd: { id, action: 'forward' }, json };
+      return { id, action: 'forward' };
     
     case 'reload':
-      return { cmd: { id, action: 'reload' }, json };
+      return { id, action: 'reload' };
     
     case 'eval':
-      return { cmd: { id, action: 'evaluate', script: rest.join(' ') }, json };
+      return { id, action: 'evaluate', script: rest.join(' ') };
 
     default:
-      return { cmd: null, json };
+      return null;
   }
+}
+
+function parseBatchCommands(args: string[]): Record<string, unknown>[] {
+  const commands: Record<string, unknown>[] = [];
+  
+  // Each argument after 'batch' is a command string
+  for (const arg of args) {
+    // Split the command string into parts
+    const parts = arg.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    const cleanParts = parts.map(p => p.replace(/^"|"$/g, ''));
+    
+    const cmd = parseCommand(cleanParts);
+    if (cmd) {
+      commands.push(cmd);
+    }
+  }
+  
+  return commands;
 }
 
 // ============================================================================
 // Output Formatting
 // ============================================================================
 
-function printResponse(response: Response, json: boolean): void {
-  if (json) {
-    console.log(JSON.stringify(response));
-    return;
-  }
-
+function formatResponse(response: Response): string {
   if (!response.success) {
-    console.error('\x1b[31m✗ Error:\x1b[0m', response.error);
-    process.exit(1);
+    return `\x1b[31m✗ Error:\x1b[0m ${response.error}`;
   }
 
   const data = response.data as Record<string, unknown>;
 
   if (data?.url && data?.title) {
-    console.log('\x1b[32m✓\x1b[0m', '\x1b[1m' + data.title + '\x1b[0m');
-    console.log('\x1b[2m  ' + data.url + '\x1b[0m');
+    return `\x1b[32m✓\x1b[0m \x1b[1m${data.title}\x1b[0m\n\x1b[2m  ${data.url}\x1b[0m`;
   } else if (data?.snapshot) {
-    console.log(data.snapshot);
+    return String(data.snapshot);
   } else if (data?.text !== undefined) {
-    console.log(data.text);
+    return String(data.text);
   } else if (data?.url) {
-    console.log(data.url);
+    return String(data.url);
   } else if (data?.title) {
-    console.log(data.title);
+    return String(data.title);
   } else if (data?.result !== undefined) {
-    console.log(typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : data.result);
+    return typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : String(data.result);
   } else if (data?.closed) {
-    console.log('\x1b[32m✓\x1b[0m Browser closed');
+    return '\x1b[32m✓\x1b[0m Browser closed';
   } else {
-    console.log('\x1b[32m✓\x1b[0m Done');
+    return '\x1b[32m✓\x1b[0m Done';
+  }
+}
+
+function printResponse(response: Response, json: boolean): void {
+  if (json) {
+    console.log(JSON.stringify(response));
+  } else {
+    console.log(formatResponse(response));
   }
 }
 
@@ -259,14 +290,12 @@ function printResponse(response: Response, json: boolean): void {
 // Main
 // ============================================================================
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  
-  if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
-    console.log(`
+const HELP = `
 agent-browser - fast browser automation CLI
 
-Usage: agent-browser <command> [args] [--json]
+Usage: 
+  agent-browser <command> [args] [--json]
+  agent-browser batch <cmd1> <cmd2> ... [--json]
 
 Commands:
   open <url>              Navigate to URL
@@ -274,7 +303,7 @@ Commands:
   fill <sel> <text>       Fill input
   type <sel> <text>       Type text
   hover <sel>             Hover element
-  snapshot                Get accessibility tree with refs
+  snapshot [options]      Get accessibility tree with refs
   screenshot [path]       Take screenshot
   get text <sel>          Get text content
   get url                 Get current URL
@@ -284,6 +313,16 @@ Commands:
   eval <js>               Evaluate JavaScript
   close                   Close browser
 
+Snapshot Options:
+  -i, --interactive       Only show interactive elements (buttons, links, inputs)
+  -c, --compact           Remove empty structural elements
+  -d, --depth <n>         Limit tree depth (e.g., --depth 3)
+  -s, --selector <sel>    Scope snapshot to CSS selector
+
+Batch Mode:
+  batch <cmd1> <cmd2> ... Execute multiple commands in sequence
+                          Each command is a quoted string
+
 Options:
   --json                  Output JSON (for AI agents)
 
@@ -292,14 +331,110 @@ Examples:
   agent-browser snapshot
   agent-browser click @e2
   agent-browser fill @e3 "hello"
-`);
+
+  # Batch mode - execute multiple commands efficiently
+  agent-browser batch "open example.com" "snapshot" "click a"
+  agent-browser batch "open google.com" "snapshot" "get title" --json
+`;
+
+async function runBatch(commands: Record<string, unknown>[], json: boolean): Promise<void> {
+  const results: Response[] = [];
+  let hasError = false;
+
+  for (const cmd of commands) {
+    try {
+      const response = await sendCommand(cmd);
+      results.push(response);
+      
+      if (!json) {
+        // Print each result as we go for non-JSON mode
+        console.log(`\x1b[36m[${cmd.action}]\x1b[0m`);
+        console.log(formatResponse(response));
+        console.log();
+      }
+      
+      if (!response.success) {
+        hasError = true;
+        break; // Stop on first error
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const errorResponse: Response = {
+        id: String(cmd.id),
+        success: false,
+        error: message,
+      };
+      results.push(errorResponse);
+      hasError = true;
+      
+      if (!json) {
+        console.log(`\x1b[36m[${cmd.action}]\x1b[0m`);
+        console.log(`\x1b[31m✗ Error:\x1b[0m ${message}`);
+      }
+      break;
+    }
+  }
+
+  if (json) {
+    console.log(JSON.stringify({
+      success: !hasError,
+      results,
+      completed: results.length,
+      total: commands.length,
+    }));
+  } else {
+    console.log(`\x1b[2m─────────────────────────────────────\x1b[0m`);
+    console.log(`Completed ${results.length}/${commands.length} commands`);
+  }
+
+  process.exit(hasError ? 1 : 0);
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const json = args.includes('--json');
+  const cleanArgs = args.filter(a => !a.startsWith('--'));
+  
+  if (cleanArgs.length === 0 || args.includes('--help') || args.includes('-h')) {
+    console.log(HELP);
     process.exit(0);
   }
 
-  const { cmd, json } = parseArgs(args);
+  // Check for batch mode
+  if (cleanArgs[0] === 'batch') {
+    const batchArgs = cleanArgs.slice(1);
+    if (batchArgs.length === 0) {
+      console.error('\x1b[31mBatch mode requires at least one command\x1b[0m');
+      console.log('\nExample: agent-browser batch "open example.com" "snapshot"');
+      process.exit(1);
+    }
+    
+    const commands = parseBatchCommands(batchArgs);
+    if (commands.length === 0) {
+      console.error('\x1b[31mNo valid commands found\x1b[0m');
+      process.exit(1);
+    }
+    
+    try {
+      await ensureDaemon();
+      await runBatch(commands, json);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (json) {
+        console.log(JSON.stringify({ success: false, error: message }));
+      } else {
+        console.error('\x1b[31m✗ Error:\x1b[0m', message);
+      }
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Single command mode
+  const cmd = parseCommand(cleanArgs);
   
   if (!cmd) {
-    console.error('\x1b[31mUnknown command\x1b[0m');
+    console.error('\x1b[31mUnknown command:\x1b[0m', cleanArgs[0]);
     process.exit(1);
   }
 
@@ -307,7 +442,7 @@ Examples:
     await ensureDaemon();
     const response = await sendCommand(cmd);
     printResponse(response, json);
-    process.exit(0);
+    process.exit(response.success ? 0 : 1);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (json) {

@@ -62,9 +62,14 @@ export class BrowserManager {
   /**
    * Get enhanced snapshot with refs and cache the ref map
    */
-  async getSnapshot(): Promise<EnhancedSnapshot> {
+  async getSnapshot(options?: {
+    interactive?: boolean;
+    maxDepth?: number;
+    compact?: boolean;
+    selector?: string;
+  }): Promise<EnhancedSnapshot> {
     const page = this.getPage();
-    const snapshot = await getEnhancedSnapshot(page);
+    const snapshot = await getEnhancedSnapshot(page, options);
     this.refMap = snapshot.refs;
     this.lastSnapshot = snapshot.tree;
     return snapshot;

@@ -601,6 +601,10 @@ const screenshotSchema = baseCommandSchema.extend({
 
 const snapshotSchema = baseCommandSchema.extend({
   action: z.literal('snapshot'),
+  interactive: z.boolean().optional(),
+  maxDepth: z.number().nonnegative().optional(),
+  compact: z.boolean().optional(),
+  selector: z.string().optional(),
 });
 
 const evaluateSchema = baseCommandSchema.extend({
