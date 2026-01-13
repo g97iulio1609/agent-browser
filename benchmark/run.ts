@@ -216,11 +216,11 @@ async function runPlaywrightMCP(workflow: Workflow): Promise<void> {
 
 function printResults(): void {
   console.log('\n' + '═'.repeat(80));
-  console.log('📊 DETAILED RESULTS');
+  console.log('→ DETAILED RESULTS');
   console.log('═'.repeat(80));
 
   for (const workflow of workflows) {
-    console.log(`\n📋 ${workflow.name}`);
+    console.log(`\n→ ${workflow.name}`);
     console.log('─'.repeat(70));
     console.log('│ Operation          │ agent-browser │ playwright-mcp │ Diff      │');
     console.log('├────────────────────┼───────────────┼────────────────┼───────────┤');
@@ -256,7 +256,7 @@ function printResults(): void {
   const mcpOps = results.filter(r => r.tool === 'playwright-mcp').length;
 
   console.log('\n' + '═'.repeat(80));
-  console.log('📈 SUMMARY');
+  console.log('→ SUMMARY');
   console.log('═'.repeat(80));
   console.log(`\n  Workflows tested: ${workflows.length}`);
   console.log(`  Total operations: ${abOps} (agent-browser), ${mcpOps} (playwright-mcp)`);
@@ -264,9 +264,9 @@ function printResults(): void {
   console.log(`  playwright-mcp total: ${formatTime(mcpTotalAll)} (${(mcpTotalAll / mcpOps).toFixed(0)}ms avg/op)`);
   
   if (abTotalAll < mcpTotalAll) {
-    console.log(`\n  ✅ agent-browser is ${((mcpTotalAll - abTotalAll) / 1000).toFixed(2)}s faster overall`);
+    console.log(`\n  ✓ agent-browser is ${((mcpTotalAll - abTotalAll) / 1000).toFixed(2)}s faster overall`);
   } else {
-    console.log(`\n  ⏱️  playwright-mcp is ${((abTotalAll - mcpTotalAll) / 1000).toFixed(2)}s faster overall`);
+    console.log(`\n  ⚠ playwright-mcp is ${((abTotalAll - mcpTotalAll) / 1000).toFixed(2)}s faster overall`);
   }
 
   // Context usage
@@ -290,19 +290,19 @@ function sleep(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   console.log('═'.repeat(80));
-  console.log('🚀 COMPREHENSIVE BENCHMARK: agent-browser vs playwright-mcp');
+  console.log('→ COMPREHENSIVE BENCHMARK: agent-browser vs playwright-mcp');
   console.log('═'.repeat(80));
   console.log('\nWorkflows:');
   for (const w of workflows) {
     console.log(`  • ${w.name}: ${w.description} (${w.steps.length} steps)`);
   }
 
-  console.log('\n🔨 Building...');
+  console.log('\n→ Building...');
   execSync('pnpm build', { cwd: process.cwd(), stdio: 'inherit' });
 
   for (const workflow of workflows) {
     console.log(`\n${'─'.repeat(80)}`);
-    console.log(`📋 Running: ${workflow.name}`);
+    console.log(`→ Running: ${workflow.name}`);
     console.log('─'.repeat(80));
 
     console.log('\n  agent-browser:');
