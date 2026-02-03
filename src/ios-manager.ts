@@ -91,6 +91,7 @@ export class IOSManager {
       // Parse output - format is:
       // == Devices ==
       // Device Name (OS Version) (UDID)
+      // Real devices show version as just "26.2", simulators as "iOS 18.0"
       const lines = output.split('\n');
       let inDevicesSection = false;
 
@@ -99,22 +100,35 @@ export class IOSManager {
           inDevicesSection = true;
           continue;
         }
-        if (line.includes('== Simulators ==')) {
-          break; // Stop when we hit simulators section
+        // Stop at Simulators or Devices Offline section
+        if (line.includes('== Simulators ==') || line.includes('== Devices Offline ==')) {
+          break;
         }
 
         if (inDevicesSection && line.trim()) {
-          // Match pattern: "Device Name (iOS 17.5) (00008101-XXXX)"
+          // Match pattern: "Device Name (version) (UDID)"
           const match = line.match(/^(.+?)\s+\(([^)]+)\)\s+\(([A-F0-9-]+)\)$/i);
           if (match) {
             const [, name, version, udid] = match;
-            // Filter to only iOS devices (not Macs)
-            if (version.includes('iOS') || version.includes('iPadOS')) {
+            const nameLower = name.toLowerCase();
+            // Include iOS devices: either name contains iPhone/iPad, or version looks like iOS
+            // (a simple version number like "26.2" or "18.6") and isn't a Mac
+            const isIOS =
+              nameLower.includes('iphone') ||
+              nameLower.includes('ipad') ||
+              version.includes('iOS') ||
+              version.includes('iPadOS');
+            const isMac =
+              nameLower.includes('mac') ||
+              nameLower.includes('macbook') ||
+              nameLower.includes('imac');
+
+            if (isIOS || (!isMac && /^\d+\.\d+(\.\d+)?$/.test(version))) {
               devices.push({
                 name: name.trim(),
                 udid: udid,
                 state: 'Connected',
-                runtime: version,
+                runtime: `iOS ${version}`,
                 isAvailable: true,
                 isRealDevice: true,
               });
@@ -392,14 +406,21 @@ export class IOSManager {
 
       if (envUdid) {
         device = await this.findDevice(envUdid);
+        if (!device) {
+          throw new Error(`Device with UDID ${envUdid} not found. Run: agent-browser device list`);
+        }
       } else if (envDevice) {
         device = await this.findDevice(envDevice);
+        if (!device) {
+          throw new Error(`Device "${envDevice}" not found. Run: agent-browser device list`);
+        }
       } else {
         device = await this.findDefaultDevice();
-      }
-
-      if (!device) {
-        throw new Error('No iOS simulators available. Open Xcode and download simulator runtimes.');
+        if (!device) {
+          throw new Error(
+            'No iOS simulators available. Open Xcode and download simulator runtimes.'
+          );
+        }
       }
     }
 

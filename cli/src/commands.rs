@@ -103,6 +103,12 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
                     nav_cmd["headers"] = headers;
                 }
             }
+            // Include iOS device info if specified (needed for auto-launch with existing daemon)
+            if flags.provider.as_deref() == Some("ios") {
+                if let Some(ref device) = flags.device {
+                    nav_cmd["iosDevice"] = json!(device);
+                }
+            }
             Ok(nav_cmd)
         }
         "back" => Ok(json!({ "id": id, "action": "back" })),
