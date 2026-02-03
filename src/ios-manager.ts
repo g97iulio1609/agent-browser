@@ -42,6 +42,7 @@ interface IOSDeviceInfo {
   state: string;
   runtime: string;
   isAvailable: boolean;
+  isRealDevice?: boolean;
 }
 
 /**
@@ -74,6 +75,61 @@ export class IOSManager {
   }
 
   /**
+   * List connected real iOS devices
+   */
+  private async listRealDevices(): Promise<IOSDeviceInfo[]> {
+    const devices: IOSDeviceInfo[] = [];
+
+    try {
+      // Use xcrun xctrace to list connected devices
+      const { execSync } = await import('node:child_process');
+      const output = execSync('xcrun xctrace list devices 2>/dev/null || true', {
+        encoding: 'utf-8',
+        timeout: 10000,
+      });
+
+      // Parse output - format is:
+      // == Devices ==
+      // Device Name (OS Version) (UDID)
+      const lines = output.split('\n');
+      let inDevicesSection = false;
+
+      for (const line of lines) {
+        if (line.includes('== Devices ==')) {
+          inDevicesSection = true;
+          continue;
+        }
+        if (line.includes('== Simulators ==')) {
+          break; // Stop when we hit simulators section
+        }
+
+        if (inDevicesSection && line.trim()) {
+          // Match pattern: "Device Name (iOS 17.5) (00008101-XXXX)"
+          const match = line.match(/^(.+?)\s+\(([^)]+)\)\s+\(([A-F0-9-]+)\)$/i);
+          if (match) {
+            const [, name, version, udid] = match;
+            // Filter to only iOS devices (not Macs)
+            if (version.includes('iOS') || version.includes('iPadOS')) {
+              devices.push({
+                name: name.trim(),
+                udid: udid,
+                state: 'Connected',
+                runtime: version,
+                isAvailable: true,
+                isRealDevice: true,
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore errors - real device listing is optional
+    }
+
+    return devices;
+  }
+
+  /**
    * List available iOS simulators
    */
   async listDevices(): Promise<IOSDeviceInfo[]> {
@@ -94,6 +150,7 @@ export class IOSManager {
               state: device.state,
               runtime: runtime,
               isAvailable: device.isAvailable ?? true,
+              isRealDevice: false,
             });
           }
         }
@@ -105,6 +162,19 @@ export class IOSManager {
     }
 
     return devices;
+  }
+
+  /**
+   * List all devices (simulators + real devices)
+   */
+  async listAllDevices(): Promise<IOSDeviceInfo[]> {
+    const [simulators, realDevices] = await Promise.all([
+      this.listDevices(),
+      this.listRealDevices(),
+    ]);
+
+    // Real devices first, then simulators
+    return [...realDevices, ...simulators];
   }
 
   /**
@@ -130,10 +200,10 @@ export class IOSManager {
   }
 
   /**
-   * Find device by name or UDID
+   * Find device by name or UDID (searches both simulators and real devices)
    */
   private async findDevice(nameOrUdid: string): Promise<IOSDeviceInfo | null> {
-    const devices = await this.listDevices();
+    const devices = await this.listAllDevices();
 
     // Try exact UDID match first
     const byUdid = devices.find((d) => d.udid === nameOrUdid);
@@ -339,8 +409,10 @@ export class IOSManager {
     // Start Appium server
     await this.startAppiumServer();
 
-    // Boot simulator
-    await this.bootSimulator(device.udid);
+    // Boot simulator (skip for real devices - they're already running)
+    if (!device.isRealDevice) {
+      await this.bootSimulator(device.udid);
+    }
 
     // Connect to Safari via Appium
     try {

@@ -51,6 +51,7 @@ describe('IOSManager', () => {
         state: 'Shutdown',
         runtime: 'iOS 18.0',
         isAvailable: true,
+        isRealDevice: false,
       });
     });
 

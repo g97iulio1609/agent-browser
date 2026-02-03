@@ -81,22 +81,47 @@ pub fn print_response(resp: &Response, json_mode: bool, action: Option<&str>) {
         // iOS Devices
         if let Some(devices) = data.get("devices").and_then(|v| v.as_array()) {
             if devices.is_empty() {
-                println!("No iOS simulators available. Open Xcode to download simulator runtimes.");
+                println!("No iOS devices available. Open Xcode to download simulator runtimes.");
                 return;
             }
-            println!("Available iOS Simulators:\n");
-            for device in devices.iter() {
-                let name = device.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
-                let runtime = device.get("runtime").and_then(|v| v.as_str()).unwrap_or("");
-                let state = device.get("state").and_then(|v| v.as_str()).unwrap_or("Unknown");
-                let udid = device.get("udid").and_then(|v| v.as_str()).unwrap_or("");
-                let state_indicator = if state == "Booted" {
-                    color::green("●")
-                } else {
-                    color::dim("○")
-                };
-                println!("  {} {} (iOS {})", state_indicator, name, runtime);
-                println!("    {}", color::dim(udid));
+
+            // Separate real devices from simulators
+            let real_devices: Vec<_> = devices
+                .iter()
+                .filter(|d| d.get("isRealDevice").and_then(|v| v.as_bool()).unwrap_or(false))
+                .collect();
+            let simulators: Vec<_> = devices
+                .iter()
+                .filter(|d| !d.get("isRealDevice").and_then(|v| v.as_bool()).unwrap_or(false))
+                .collect();
+
+            if !real_devices.is_empty() {
+                println!("Connected Devices:\n");
+                for device in real_devices.iter() {
+                    let name = device.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                    let runtime = device.get("runtime").and_then(|v| v.as_str()).unwrap_or("");
+                    let udid = device.get("udid").and_then(|v| v.as_str()).unwrap_or("");
+                    println!("  {} {} ({})", color::green("●"), name, runtime);
+                    println!("    {}", color::dim(udid));
+                }
+                println!();
+            }
+
+            if !simulators.is_empty() {
+                println!("Simulators:\n");
+                for device in simulators.iter() {
+                    let name = device.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                    let runtime = device.get("runtime").and_then(|v| v.as_str()).unwrap_or("");
+                    let state = device.get("state").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                    let udid = device.get("udid").and_then(|v| v.as_str()).unwrap_or("");
+                    let state_indicator = if state == "Booted" {
+                        color::green("●")
+                    } else {
+                        color::dim("○")
+                    };
+                    println!("  {} {} ({})", state_indicator, name, runtime);
+                    println!("    {}", color::dim(udid));
+                }
             }
             return;
         }

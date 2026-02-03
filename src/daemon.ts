@@ -252,7 +252,7 @@ export async function startDaemon(options?: {
           if (parseResult.command.action === 'device_list') {
             const iosManager = new IOSManager();
             try {
-              const devices = await iosManager.listDevices();
+              const devices = await iosManager.listAllDevices();
               const response = {
                 id: parseResult.command.id,
                 success: true as const,
