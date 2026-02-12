@@ -1317,7 +1317,7 @@ export class BrowserManager {
    * Create a new tab in the current context
    */
   async newTab(): Promise<{ index: number; total: number }> {
-    if (!this.browser || this.contexts.length === 0) {
+    if (this.contexts.length === 0) {
       throw new Error('Browser not launched');
     }
 
@@ -1344,6 +1344,11 @@ export class BrowserManager {
     height: number;
   }): Promise<{ index: number; total: number }> {
     if (!this.browser) {
+      if (this.isPersistentContext) {
+        throw new Error(
+          'Cannot create new windows with persistent context (--extension or --profile). Use "tab new" instead.'
+        );
+      }
       throw new Error('Browser not launched');
     }
 
