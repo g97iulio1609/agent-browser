@@ -73,9 +73,17 @@ describe('getSocketDir', () => {
   });
 
   describe('XDG_RUNTIME_DIR', () => {
-    it('should use when AGENT_BROWSER_SOCKET_DIR is not set', () => {
-      process.env.XDG_RUNTIME_DIR = '/run/user/1000';
-      expect(getSocketDir()).toBe('/run/user/1000/agent-browser');
+    it('should use when writable and AGENT_BROWSER_SOCKET_DIR is not set', () => {
+      // Use a directory that actually exists and is writable
+      const tmpDir = os.tmpdir();
+      process.env.XDG_RUNTIME_DIR = tmpDir;
+      expect(getSocketDir()).toBe(path.join(tmpDir, 'agent-browser'));
+    });
+
+    it('should fall back to home dir when XDG_RUNTIME_DIR is not writable', () => {
+      process.env.XDG_RUNTIME_DIR = '/nonexistent/path';
+      const result = getSocketDir();
+      expect(result).toContain('.agent-browser');
     });
 
     it('should ignore empty string', () => {

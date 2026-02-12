@@ -58,8 +58,18 @@ function getPortForSession(session: string): number {
  */
 export function getAppDir(): string {
   // 1. XDG_RUNTIME_DIR (Linux standard)
+  // Only use if the directory is writable (avoids WSL permission issues)
   if (process.env.XDG_RUNTIME_DIR) {
-    return path.join(process.env.XDG_RUNTIME_DIR, 'agent-browser');
+    const candidate = path.join(process.env.XDG_RUNTIME_DIR, 'agent-browser');
+    try {
+      fs.mkdirSync(candidate, { recursive: true });
+      const testFile = path.join(candidate, '.write_test');
+      fs.writeFileSync(testFile, '');
+      fs.unlinkSync(testFile);
+      return candidate;
+    } catch {
+      // Fall through to home directory
+    }
   }
 
   // 2. Home directory fallback (like Docker Desktop's ~/.docker/run/)
