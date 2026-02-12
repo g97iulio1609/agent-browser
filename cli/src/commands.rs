@@ -1419,9 +1419,13 @@ fn parse_network(rest: &[&str], id: &str) -> Result<Value, ParseError> {
         }
         Some("requests") => {
             let clear = rest.iter().any(|&s| s == "--clear");
+            let body = rest.iter().any(|&s| s == "--body");
             let filter_idx = rest.iter().position(|&s| s == "--filter");
             let filter = filter_idx.and_then(|i| rest.get(i + 1).map(|s| *s));
             let mut cmd = json!({ "id": id, "action": "requests", "clear": clear });
+            if body {
+                cmd["body"] = json!(true);
+            }
             if let Some(f) = filter {
                 cmd["filter"] = json!(f);
             }
