@@ -145,6 +145,53 @@ interface SnapshotData {
 }
 
 /**
+ * Check if error is due to element visibility/actionability issues.
+ * Used to detect hidden checkboxes (e.g. Ant Design, Element UI)
+ * that need force:true to interact with.
+ */
+function isVisibilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('not visible') ||
+    message.includes('to be visible') ||
+    (message.includes('Timeout') && message.includes('exceeded')) ||
+    message.includes('intercepts pointer events')
+  );
+}
+
+/**
+ * Check a checkbox with automatic fallback for hidden elements.
+ * First tries normally with a 5s timeout, then retries with force:true
+ * if the element isn't visible (common in UI frameworks like Ant Design).
+ */
+async function safeCheck(locator: import('playwright-core').Locator): Promise<void> {
+  try {
+    await locator.check({ timeout: 5000 });
+  } catch (error) {
+    if (isVisibilityError(error)) {
+      await locator.check({ force: true });
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
+ * Uncheck a checkbox with automatic fallback for hidden elements.
+ */
+async function safeUncheck(locator: import('playwright-core').Locator): Promise<void> {
+  try {
+    await locator.uncheck({ timeout: 5000 });
+  } catch (error) {
+    if (isVisibilityError(error)) {
+      await locator.uncheck({ force: true });
+    } else {
+      throw error;
+    }
+  }
+}
+
+/**
  * Convert Playwright errors to AI-friendly messages
  * @internal Exported for testing
  */
@@ -808,7 +855,7 @@ async function handleFill(command: FillCommand, browser: BrowserManager): Promis
 async function handleCheck(command: CheckCommand, browser: BrowserManager): Promise<Response> {
   const locator = browser.getLocator(command.selector);
   try {
-    await locator.check();
+    await safeCheck(locator);
   } catch (error) {
     throw toAIFriendlyError(error, command.selector);
   }
@@ -818,7 +865,7 @@ async function handleCheck(command: CheckCommand, browser: BrowserManager): Prom
 async function handleUncheck(command: UncheckCommand, browser: BrowserManager): Promise<Response> {
   const locator = browser.getLocator(command.selector);
   try {
-    await locator.uncheck();
+    await safeUncheck(locator);
   } catch (error) {
     throw toAIFriendlyError(error, command.selector);
   }
@@ -897,7 +944,7 @@ async function handleGetByRole(
       await locator.fill(command.value ?? '');
       return successResponse(command.id, { filled: true });
     case 'check':
-      await locator.check();
+      await safeCheck(locator);
       return successResponse(command.id, { checked: true });
     case 'hover':
       await locator.hover();
@@ -937,7 +984,7 @@ async function handleGetByLabel(
       await locator.fill(command.value ?? '');
       return successResponse(command.id, { filled: true });
     case 'check':
-      await locator.check();
+      await safeCheck(locator);
       return successResponse(command.id, { checked: true });
   }
 }
@@ -1694,7 +1741,7 @@ async function handleGetByTestId(
       await locator.fill(command.value ?? '');
       return successResponse(command.id, { filled: true });
     case 'check':
-      await locator.check();
+      await safeCheck(locator);
       return successResponse(command.id, { checked: true });
     case 'hover':
       await locator.hover();
@@ -1714,7 +1761,7 @@ async function handleNth(command: NthCommand, browser: BrowserManager): Promise<
       await locator.fill(command.value ?? '');
       return successResponse(command.id, { filled: true });
     case 'check':
-      await locator.check();
+      await safeCheck(locator);
       return successResponse(command.id, { checked: true });
     case 'hover':
       await locator.hover();
