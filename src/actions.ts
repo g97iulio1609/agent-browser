@@ -613,6 +613,7 @@ async function handleScreenshot(
   const options: Parameters<Page['screenshot']>[0] = {
     fullPage: command.fullPage,
     type: command.format ?? 'png',
+    scale: command.scale,
   };
 
   if (command.format === 'jpeg' && command.quality !== undefined) {
