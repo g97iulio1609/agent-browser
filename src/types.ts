@@ -756,6 +756,7 @@ export interface ScreenshotCommand extends BaseCommand {
   selector?: string;
   format?: 'png' | 'jpeg';
   quality?: number;
+  scale?: 'css' | 'device';
 }
 
 export interface SnapshotCommand extends BaseCommand {
