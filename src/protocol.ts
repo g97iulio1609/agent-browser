@@ -242,6 +242,7 @@ const requestsSchema = baseCommandSchema.extend({
     .nullish()
     .transform((v) => v ?? undefined),
   clear: z.boolean().optional(),
+  body: z.boolean().optional(),
 });
 
 const downloadSchema = baseCommandSchema.extend({

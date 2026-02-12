@@ -1155,7 +1155,7 @@ async function handleRequests(
   }
 
   // Start tracking if not already
-  browser.startRequestTracking();
+  browser.startRequestTracking(command.body);
 
   const requests = browser.getRequests(command.filter);
   return successResponse(command.id, { requests });

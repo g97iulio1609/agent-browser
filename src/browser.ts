@@ -50,6 +50,9 @@ interface TrackedRequest {
   headers: Record<string, string>;
   timestamp: number;
   resourceType: string;
+  status?: number;
+  responseHeaders?: Record<string, string>;
+  responseBody?: string;
 }
 
 interface ConsoleMessage {
@@ -82,6 +85,7 @@ export class BrowserManager {
   private activeFrame: Frame | null = null;
   private dialogHandler: ((dialog: Dialog) => Promise<void>) | null = null;
   private trackedRequests: TrackedRequest[] = [];
+  private isTrackingRequests: boolean = false;
   private routes: Map<string, (route: Route) => Promise<void>> = new Map();
   private consoleMessages: ConsoleMessage[] = [];
   private pageErrors: PageError[] = [];
@@ -302,7 +306,9 @@ export class BrowserManager {
   /**
    * Start tracking requests
    */
-  startRequestTracking(): void {
+  startRequestTracking(includeBody?: boolean): void {
+    if (this.isTrackingRequests) return;
+    this.isTrackingRequests = true;
     const page = this.getPage();
     page.on('request', (request: Request) => {
       this.trackedRequests.push({
@@ -312,6 +318,22 @@ export class BrowserManager {
         timestamp: Date.now(),
         resourceType: request.resourceType(),
       });
+    });
+    page.on('response', async (response) => {
+      const tracked = this.trackedRequests.find(
+        (r) => r.url === response.url() && r.status === undefined
+      );
+      if (tracked) {
+        tracked.status = response.status();
+        tracked.responseHeaders = response.headers();
+        if (includeBody) {
+          try {
+            tracked.responseBody = await response.text();
+          } catch {
+            // Response body may not be available (e.g., redirects)
+          }
+        }
+      }
     });
   }
 
