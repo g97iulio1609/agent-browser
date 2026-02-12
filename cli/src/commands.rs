@@ -1,6 +1,6 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, IsTerminal, Read};
 
 use crate::flags::Flags;
 
@@ -135,16 +135,38 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
         "fill" => {
             let sel = rest.get(0).ok_or_else(|| ParseError::MissingArguments {
                 context: "fill".to_string(),
-                usage: "fill <selector> <text>",
+                usage: "fill <selector> <text>  |  echo 'text' | fill <selector> --stdin",
             })?;
-            Ok(json!({ "id": id, "action": "fill", "selector": sel, "value": rest[1..].join(" ") }))
+            let value = if rest.get(1) == Some(&"--stdin") || (rest.len() == 1 && !io::stdin().is_terminal()) {
+                let stdin = io::stdin();
+                let mut buf = String::new();
+                stdin.lock().read_to_string(&mut buf).map_err(|e| ParseError::InvalidValue {
+                    message: format!("Failed to read from stdin: {}", e),
+                    usage: "echo 'text' | agent-browser fill <selector> --stdin",
+                })?;
+                buf
+            } else {
+                rest[1..].join(" ")
+            };
+            Ok(json!({ "id": id, "action": "fill", "selector": sel, "value": value }))
         }
         "type" => {
             let sel = rest.get(0).ok_or_else(|| ParseError::MissingArguments {
                 context: "type".to_string(),
-                usage: "type <selector> <text>",
+                usage: "type <selector> <text>  |  echo 'text' | type <selector> --stdin",
             })?;
-            Ok(json!({ "id": id, "action": "type", "selector": sel, "text": rest[1..].join(" ") }))
+            let text = if rest.get(1) == Some(&"--stdin") || (rest.len() == 1 && !io::stdin().is_terminal()) {
+                let stdin = io::stdin();
+                let mut buf = String::new();
+                stdin.lock().read_to_string(&mut buf).map_err(|e| ParseError::InvalidValue {
+                    message: format!("Failed to read from stdin: {}", e),
+                    usage: "echo 'text' | agent-browser type <selector> --stdin",
+                })?;
+                buf
+            } else {
+                rest[1..].join(" ")
+            };
+            Ok(json!({ "id": id, "action": "type", "selector": sel, "text": text }))
         }
         "hover" => {
             let sel = rest.get(0).ok_or_else(|| ParseError::MissingArguments {

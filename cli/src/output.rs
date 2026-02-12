@@ -526,18 +526,28 @@ Examples:
 agent-browser fill - Clear and fill an input field
 
 Usage: agent-browser fill <selector> <text>
+       echo 'text' | agent-browser fill <selector> --stdin
 
 Clears the input field and fills it with the specified text.
 This replaces any existing content in the field.
+
+Use --stdin to read the fill value from standard input. This is useful
+for text containing shell-sensitive characters like $, !, or backticks.
+If piped input is detected and no text argument is given, stdin is read
+automatically.
 
 Global Options:
   --json               Output as JSON
   --session <name>     Use specific session
 
+Options:
+  --stdin              Read fill value from stdin
+
 Examples:
   agent-browser fill "#email" "user@example.com"
   agent-browser fill @e3 "Hello World"
   agent-browser fill "input[name='search']" "query"
+  echo 'pa$$word!' | agent-browser fill @e1 --stdin
 "##
         }
         "type" => {
@@ -545,17 +555,27 @@ Examples:
 agent-browser type - Type text into an element
 
 Usage: agent-browser type <selector> <text>
+       echo 'text' | agent-browser type <selector> --stdin
 
 Types text into the specified element character by character.
 Unlike fill, this does not clear existing content first.
+
+Use --stdin to read the type value from standard input. This is useful
+for text containing shell-sensitive characters like $, !, or backticks.
+If piped input is detected and no text argument is given, stdin is read
+automatically.
 
 Global Options:
   --json               Output as JSON
   --session <name>     Use specific session
 
+Options:
+  --stdin              Read type value from stdin
+
 Examples:
   agent-browser type "#search" "hello"
   agent-browser type @e2 "additional text"
+  echo 'pa$$word!' | agent-browser type @e1 --stdin
 "##
         }
         "hover" => {
