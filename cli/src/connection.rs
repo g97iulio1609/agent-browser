@@ -92,9 +92,20 @@ pub fn get_socket_dir() -> PathBuf {
     }
 
     // 2. XDG_RUNTIME_DIR (Linux standard, ignore empty string)
+    // Only use if the directory exists and is writable (avoids WSL permission issues)
     if let Ok(runtime_dir) = env::var("XDG_RUNTIME_DIR") {
         if !runtime_dir.is_empty() {
-            return PathBuf::from(runtime_dir).join("agent-browser");
+            let candidate = PathBuf::from(&runtime_dir).join("agent-browser");
+            if candidate.exists()
+                || fs::create_dir_all(&candidate)
+                    .and_then(|_| {
+                        let test = candidate.join(".write_test");
+                        fs::write(&test, b"").and_then(|_| fs::remove_file(&test))
+                    })
+                    .is_ok()
+            {
+                return candidate;
+            }
         }
     }
 
@@ -628,13 +639,28 @@ mod tests {
     fn test_get_socket_dir_xdg_runtime() {
         let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
 
+        // Use a directory that actually exists and is writable
+        let tmp_dir = env::temp_dir();
         env::remove_var("AGENT_BROWSER_SOCKET_DIR");
-        env::set_var("XDG_RUNTIME_DIR", "/run/user/1000");
+        env::set_var("XDG_RUNTIME_DIR", &tmp_dir);
 
         assert_eq!(
             get_socket_dir(),
-            PathBuf::from("/run/user/1000/agent-browser")
+            tmp_dir.join("agent-browser")
         );
+    }
+
+    #[test]
+    fn test_get_socket_dir_xdg_runtime_not_writable() {
+        let _guard = EnvGuard::new(&["AGENT_BROWSER_SOCKET_DIR", "XDG_RUNTIME_DIR"]);
+
+        env::remove_var("AGENT_BROWSER_SOCKET_DIR");
+        env::set_var("XDG_RUNTIME_DIR", "/nonexistent/path");
+
+        // Should fall back to ~/.agent-browser
+        assert!(get_socket_dir()
+            .to_string_lossy()
+            .ends_with(".agent-browser"));
     }
 
     #[test]
