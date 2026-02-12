@@ -723,6 +723,28 @@ describe('parseCommand', () => {
     });
   });
 
+  describe('requests', () => {
+    it('should parse requests without filter', () => {
+      const result = parseCommand(cmd({ id: '1', action: 'requests' }));
+      expect(result.success).toBe(true);
+    });
+
+    it('should parse requests with null filter', () => {
+      const result = parseCommand(cmd({ id: '1', action: 'requests', filter: null }));
+      expect(result.success).toBe(true);
+    });
+
+    it('should parse requests with filter string', () => {
+      const result = parseCommand(cmd({ id: '1', action: 'requests', filter: 'api' }));
+      expect(result.success).toBe(true);
+    });
+
+    it('should parse requests with clear', () => {
+      const result = parseCommand(cmd({ id: '1', action: 'requests', clear: true }));
+      expect(result.success).toBe(true);
+    });
+  });
+
   describe('screencast', () => {
     it('should parse screencast_start with defaults', () => {
       const result = parseCommand(cmd({ id: '1', action: 'screencast_start' }));
