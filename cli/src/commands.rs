@@ -181,7 +181,14 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
                     message: format!("Failed to read from stdin: {}", e),
                     usage: "echo 'text' | agent-browser fill <selector> --stdin",
                 })?;
-                buf.trim_end_matches('\n').trim_end_matches('\r').to_string()
+                let trimmed = buf.trim_end_matches('\n').trim_end_matches('\r').to_string();
+                if trimmed.is_empty() {
+                    return Err(ParseError::InvalidValue {
+                        message: "No input received from stdin (pipe is empty or redirected from /dev/null)".to_string(),
+                        usage: "echo 'text' | agent-browser fill <selector> --stdin",
+                    });
+                }
+                trimmed
             } else {
                 rest[1..].join(" ")
             };
@@ -199,7 +206,14 @@ pub fn parse_command(args: &[String], flags: &Flags) -> Result<Value, ParseError
                     message: format!("Failed to read from stdin: {}", e),
                     usage: "echo 'text' | agent-browser type <selector> --stdin",
                 })?;
-                buf.trim_end_matches('\n').trim_end_matches('\r').to_string()
+                let trimmed = buf.trim_end_matches('\n').trim_end_matches('\r').to_string();
+                if trimmed.is_empty() {
+                    return Err(ParseError::InvalidValue {
+                        message: "No input received from stdin (pipe is empty or redirected from /dev/null)".to_string(),
+                        usage: "echo 'text' | agent-browser type <selector> --stdin",
+                    });
+                }
+                trimmed
             } else {
                 rest[1..].join(" ")
             };
@@ -1109,6 +1123,23 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
     let name = name_idx.and_then(|i| rest.get(i + 1).map(|s| *s));
     let exact = rest.iter().any(|&s| s == "--exact");
 
+    // Build filtered_rest excluding --name <value>, --exact so modifier detection works
+    let filtered_rest: Vec<&str> = {
+        let mut result = Vec::new();
+        let mut i = 0;
+        while i < rest.len() {
+            if rest[i] == "--name" {
+                i += 2; // skip --name and its value
+            } else if rest[i] == "--exact" {
+                i += 1;
+            } else {
+                result.push(rest[i]);
+                i += 1;
+            }
+        }
+        result
+    };
+
     match *locator {
         "role" | "text" | "label" | "placeholder" | "alt" | "title" | "testid" | "first"
         | "last" => {
@@ -1129,14 +1160,13 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             })?;
 
             // Detect positional modifiers (first/last/nth) after locator value.
-            // Example: find role spinbutton first fill '20'
-            //   rest[0]=role, rest[1]=spinbutton, rest[2]=first, rest[3]=fill, rest[4]=20
-            let maybe_modifier = rest.get(2).map(|s| *s);
+            // Use filtered_rest (flags removed) so modifiers are found at correct index.
+            let maybe_modifier = filtered_rest.get(2).map(|s| *s);
             let (position, action_offset) = match maybe_modifier {
                 Some("first") => (Some(0i64), 3usize),
                 Some("last") => (Some(-1i64), 3usize),
                 Some("nth") => {
-                    let nth_idx = rest.get(3).and_then(|s| s.parse::<i64>().ok()).ok_or_else(|| ParseError::InvalidValue {
+                    let nth_idx = filtered_rest.get(3).and_then(|s| s.parse::<i64>().ok()).ok_or_else(|| ParseError::InvalidValue {
                         message: "nth modifier requires a numeric index (e.g., nth 2)".to_string(),
                         usage: "find role <role> nth <index> [action]",
                     })?;
@@ -1145,9 +1175,9 @@ fn parse_find(rest: &[&str], id: &str) -> Result<Value, ParseError> {
                 _ => (None, 2usize),
             };
 
-            let subaction = rest.get(action_offset).unwrap_or(&"click");
-            let fill_value = if rest.len() > action_offset + 1 {
-                Some(rest[action_offset + 1..].join(" "))
+            let subaction = filtered_rest.get(action_offset).unwrap_or(&"click");
+            let fill_value = if filtered_rest.len() > action_offset + 1 {
+                Some(filtered_rest[action_offset + 1..].join(" "))
             } else {
                 None
             };

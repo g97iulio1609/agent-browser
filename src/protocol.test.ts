@@ -67,9 +67,9 @@ describe('parseCommand', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept click without selector (validated at action level)', () => {
+    it('should reject click without selector or coordinates', () => {
       const result = parseCommand(cmd({ id: '1', action: 'click' }));
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
     });
   });
 

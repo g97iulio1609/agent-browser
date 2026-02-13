@@ -392,6 +392,12 @@ export async function startDaemon(options?: {
 
     const tryListen = (port: number, attempt: number) => {
       server.listen(port, '127.0.0.1', () => {
+        server.removeAllListeners('error');
+        server.on('error', (err) => {
+          console.error('Server error:', err);
+          cleanupSocket();
+          process.exit(1);
+        });
         fs.writeFileSync(portFile, port.toString());
       });
       server.once('error', (err: NodeJS.ErrnoException) => {
