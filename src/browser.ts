@@ -249,13 +249,12 @@ export class BrowserManager {
    */
   getPage(): Page {
     if (!this.isLaunched()) {
-      const wasConnected = this.browser !== null || (this.contexts && this.contexts.length > 0);
-      if (wasConnected) {
-        throw new Error('Browser was closed externally. Run the "launch" command to restart.');
-      }
       throw new Error('Browser not launched. Call "launch" first.');
     }
     if (this.pages.length === 0) {
+      if (this.browser && !this.browser.isConnected()) {
+        throw new Error('Browser was closed externally. Run the "launch" command to restart.');
+      }
       throw new Error('Browser not launched. Call "launch" first.');
     }
     return this.pages[this.activePageIndex];
