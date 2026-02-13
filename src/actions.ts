@@ -2168,9 +2168,7 @@ async function handleNetworkDump(
 ): Promise<Response> {
   const requests = browser.getRequests();
   const outputDir = path.dirname(command.outputPath);
-  if (outputDir) {
-    mkdirSync(outputDir, { recursive: true });
-  }
+  mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(command.outputPath, JSON.stringify({ requests }, null, 2));
   return successResponse(command.id, {
     path: command.outputPath,

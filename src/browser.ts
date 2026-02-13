@@ -93,6 +93,7 @@ export class BrowserManager {
   private dialogHandler: ((dialog: Dialog) => Promise<void>) | null = null;
   private trackedRequests: TrackedRequest[] = [];
   private requestIdCounter: number = 0;
+  private isTrackingRequests: boolean = false;
   private routes: Map<string, (route: Route) => Promise<void>> = new Map();
   private consoleMessages: ConsoleMessage[] = [];
   private pageErrors: PageError[] = [];
@@ -343,10 +344,15 @@ export class BrowserManager {
    * Start tracking requests
    */
   startRequestTracking(): void {
+    if (this.isTrackingRequests) return;
+    this.isTrackingRequests = true;
     const page = this.getPage();
+    const requestMap = new WeakMap<Request, number>();
     page.on('request', (request: Request) => {
+      const id = ++this.requestIdCounter;
+      requestMap.set(request, id);
       this.trackedRequests.push({
-        id: ++this.requestIdCounter,
+        id,
         url: request.url(),
         method: request.method(),
         headers: request.headers(),
@@ -355,12 +361,13 @@ export class BrowserManager {
       });
     });
     page.on('response', (response) => {
-      const tracked = this.trackedRequests.find(
-        (r) => r.url === response.url() && !r.statusCode
-      );
-      if (tracked) {
-        tracked.statusCode = response.status();
-        tracked.responseHeaders = response.headers();
+      const reqId = requestMap.get(response.request());
+      if (reqId !== undefined) {
+        const tracked = this.trackedRequests.find((r) => r.id === reqId);
+        if (tracked) {
+          tracked.statusCode = response.status();
+          tracked.responseHeaders = response.headers();
+        }
       }
     });
   }
@@ -380,7 +387,6 @@ export class BrowserManager {
    */
   clearRequests(): void {
     this.trackedRequests = [];
-    this.requestIdCounter = 0;
   }
 
   /**
