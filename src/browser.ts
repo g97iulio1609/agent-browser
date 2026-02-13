@@ -375,11 +375,51 @@ export class BrowserManager {
   /**
    * Get tracked requests
    */
-  getRequests(filter?: string): TrackedRequest[] {
-    if (filter) {
-      return this.trackedRequests.filter((r) => r.url.includes(filter));
+  getRequests(options?: {
+    filter?: string;
+    host?: string;
+    type?: string;
+    redact?: boolean;
+  }): TrackedRequest[] {
+    let results = this.trackedRequests;
+
+    if (options?.filter) {
+      const f = options.filter;
+      results = results.filter((r) => r.url.includes(f));
     }
-    return this.trackedRequests;
+    if (options?.host) {
+      const host = options.host;
+      results = results.filter((r) => {
+        try {
+          return new URL(r.url).hostname.includes(host);
+        } catch {
+          return false;
+        }
+      });
+    }
+    if (options?.type) {
+      const types = options.type.split(',').map((t) => t.trim().toLowerCase());
+      results = results.filter((r) => types.includes(r.resourceType));
+    }
+    if (options?.redact) {
+      const sensitiveKeys = ['authorization', 'cookie', 'set-cookie', 'x-api-key', 'x-auth-token'];
+      results = results.map((r) => ({
+        ...r,
+        headers: Object.fromEntries(
+          Object.entries(r.headers).map(([k, v]) =>
+            sensitiveKeys.includes(k.toLowerCase()) ? [k, '[REDACTED]'] : [k, v]
+          )
+        ),
+        responseHeaders: r.responseHeaders
+          ? Object.fromEntries(
+              Object.entries(r.responseHeaders).map(([k, v]) =>
+                sensitiveKeys.includes(k.toLowerCase()) ? [k, '[REDACTED]'] : [k, v]
+              )
+            )
+          : undefined,
+      }));
+    }
+    return results;
   }
 
   /**
