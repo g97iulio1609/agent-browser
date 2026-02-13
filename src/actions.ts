@@ -2293,10 +2293,12 @@ async function handleSaveFile(
 
   const base64 = await page.evaluate(`(async () => {
     const resp = await fetch(${JSON.stringify(url)});
+    if (!resp.ok) throw new Error('Fetch failed: ' + resp.status + ' ' + resp.statusText);
     const blob = await resp.blob();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = () => reject(new Error('FileReader error'));
       reader.readAsDataURL(blob);
     });
   })()`);
@@ -2319,6 +2321,9 @@ async function handleDropFile(
 ): Promise<Response> {
   const page = browser.getPage();
   const fileContent = fs.readFileSync(command.filePath);
+  if (fileContent.length > 10 * 1024 * 1024) {
+    throw new Error('File too large for dropfile (max 10MB). Use upload command for large files.');
+  }
   const base64Content = fileContent.toString('base64');
   const fileName = command.fileName || path.basename(command.filePath);
   const mimeType = command.mimeType || 'application/octet-stream';
@@ -2333,7 +2338,7 @@ async function handleDropFile(
     dt.items.add(file);
 
     const el = document.querySelector(${JSON.stringify(command.selector)});
-    if (!el) throw new Error('Element not found: ${command.selector}');
+    if (!el) throw new Error('Element not found: ' + ${JSON.stringify(command.selector)});
 
     el.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true }));
     el.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true }));
