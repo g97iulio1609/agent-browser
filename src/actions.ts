@@ -113,6 +113,7 @@ import type {
   MultiSelectCommand,
   WaitForDownloadCommand,
   ResponseBodyCommand,
+  NetworkDumpCommand,
   ScreencastStartCommand,
   ScreencastStopCommand,
   InputMouseCommand,
@@ -463,6 +464,8 @@ export async function executeCommand(command: Command, browser: BrowserManager):
         return await handleWaitForDownload(command, browser);
       case 'responsebody':
         return await handleResponseBody(command, browser);
+      case 'networkdump':
+        return await handleNetworkDump(command, browser);
       case 'screencast_start':
         return await handleScreencastStart(command, browser);
       case 'screencast_stop':
@@ -2156,6 +2159,22 @@ async function handleResponseBody(
     url: response.url(),
     status: response.status(),
     body: parsed,
+  });
+}
+
+async function handleNetworkDump(
+  command: NetworkDumpCommand,
+  browser: BrowserManager
+): Promise<Response> {
+  const requests = browser.getRequests();
+  const outputDir = path.dirname(command.outputPath);
+  if (outputDir) {
+    mkdirSync(outputDir, { recursive: true });
+  }
+  fs.writeFileSync(command.outputPath, JSON.stringify({ requests }, null, 2));
+  return successResponse(command.id, {
+    path: command.outputPath,
+    count: requests.length,
   });
 }
 

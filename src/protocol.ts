@@ -668,6 +668,11 @@ const responseBodySchema = baseCommandSchema.extend({
   timeout: z.number().positive().optional(),
 });
 
+const networkDumpSchema = baseCommandSchema.extend({
+  action: z.literal('networkdump'),
+  outputPath: z.string().min(1),
+});
+
 // Screencast schemas for streaming browser viewport
 const screencastStartSchema = baseCommandSchema.extend({
   action: z.literal('screencast_start'),
@@ -949,6 +954,7 @@ const commandSchema = z.discriminatedUnion('action', [
   multiSelectSchema,
   waitForDownloadSchema,
   responseBodySchema,
+  networkDumpSchema,
   screencastStartSchema,
   screencastStopSchema,
   inputMouseSchema,

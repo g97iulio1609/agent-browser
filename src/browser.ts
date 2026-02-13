@@ -52,11 +52,14 @@ export interface ScreencastOptions {
 }
 
 interface TrackedRequest {
+  id: number;
   url: string;
   method: string;
   headers: Record<string, string>;
   timestamp: number;
   resourceType: string;
+  statusCode?: number;
+  responseHeaders?: Record<string, string>;
 }
 
 interface ConsoleMessage {
@@ -89,6 +92,7 @@ export class BrowserManager {
   private activeFrame: Frame | null = null;
   private dialogHandler: ((dialog: Dialog) => Promise<void>) | null = null;
   private trackedRequests: TrackedRequest[] = [];
+  private requestIdCounter: number = 0;
   private routes: Map<string, (route: Route) => Promise<void>> = new Map();
   private consoleMessages: ConsoleMessage[] = [];
   private pageErrors: PageError[] = [];
@@ -342,12 +346,22 @@ export class BrowserManager {
     const page = this.getPage();
     page.on('request', (request: Request) => {
       this.trackedRequests.push({
+        id: ++this.requestIdCounter,
         url: request.url(),
         method: request.method(),
         headers: request.headers(),
         timestamp: Date.now(),
         resourceType: request.resourceType(),
       });
+    });
+    page.on('response', (response) => {
+      const tracked = this.trackedRequests.find(
+        (r) => r.url === response.url() && !r.statusCode
+      );
+      if (tracked) {
+        tracked.statusCode = response.status();
+        tracked.responseHeaders = response.headers();
+      }
     });
   }
 
@@ -366,6 +380,7 @@ export class BrowserManager {
    */
   clearRequests(): void {
     this.trackedRequests = [];
+    this.requestIdCounter = 0;
   }
 
   /**

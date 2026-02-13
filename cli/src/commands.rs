@@ -1420,7 +1420,7 @@ fn parse_set(rest: &[&str], id: &str) -> Result<Value, ParseError> {
 }
 
 fn parse_network(rest: &[&str], id: &str) -> Result<Value, ParseError> {
-    const VALID: &[&str] = &["route", "unroute", "requests"];
+    const VALID: &[&str] = &["route", "unroute", "requests", "response", "dump"];
 
     match rest.first().copied() {
         Some("route") => {
@@ -1450,13 +1450,36 @@ fn parse_network(rest: &[&str], id: &str) -> Result<Value, ParseError> {
             }
             Ok(cmd)
         }
+        Some("response") => {
+            let url = rest.get(1).ok_or_else(|| ParseError::MissingArguments {
+                context: "network response".to_string(),
+                usage: "network response <url> [--timeout <ms>]",
+            })?;
+            let timeout_idx = rest.iter().position(|&s| s == "--timeout");
+            let timeout = timeout_idx.and_then(|i| rest.get(i + 1).and_then(|s| s.parse::<u64>().ok()));
+            let mut cmd = json!({ "id": id, "action": "responsebody", "url": url });
+            if let Some(t) = timeout {
+                cmd["timeout"] = json!(t);
+            }
+            Ok(cmd)
+        }
+        Some("dump") => {
+            let out_idx = rest.iter().position(|&s| s == "--out");
+            let out_path = out_idx
+                .and_then(|i| rest.get(i + 1).copied())
+                .ok_or_else(|| ParseError::MissingArguments {
+                    context: "network dump".to_string(),
+                    usage: "network dump --out <path>",
+                })?;
+            Ok(json!({ "id": id, "action": "networkdump", "outputPath": out_path }))
+        }
         Some(sub) => Err(ParseError::UnknownSubcommand {
             subcommand: sub.to_string(),
             valid_options: VALID,
         }),
         None => Err(ParseError::MissingArguments {
             context: "network".to_string(),
-            usage: "network <route|unroute|requests> [args...]",
+            usage: "network <route|unroute|requests|response|dump> [args...]",
         }),
     }
 }

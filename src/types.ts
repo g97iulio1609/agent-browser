@@ -486,6 +486,11 @@ export interface ResponseBodyCommand extends BaseCommand {
   timeout?: number;
 }
 
+export interface NetworkDumpCommand extends BaseCommand {
+  action: 'networkdump';
+  outputPath: string;
+}
+
 // Screencast commands for streaming browser viewport
 export interface ScreencastStartCommand extends BaseCommand {
   action: 'screencast_start';
@@ -978,6 +983,7 @@ export type Command =
   | MultiSelectCommand
   | WaitForDownloadCommand
   | ResponseBodyCommand
+  | NetworkDumpCommand
   | ScreencastStartCommand
   | ScreencastStopCommand
   | InputMouseCommand
