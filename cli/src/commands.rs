@@ -1483,9 +1483,29 @@ fn parse_network(rest: &[&str], id: &str) -> Result<Value, ParseError> {
                 .and_then(|i| rest.get(i + 1).copied())
                 .ok_or_else(|| ParseError::MissingArguments {
                     context: "network dump".to_string(),
-                    usage: "network dump --out <path>",
+                    usage: "network dump --out <path> [--filter <url>] [--host <domain>] [--type <types>] [--redact]",
                 })?;
-            Ok(json!({ "id": id, "action": "networkdump", "outputPath": out_path }))
+            let redact = rest.contains(&"--redact");
+            let filter_idx = rest.iter().position(|&s| s == "--filter");
+            let filter = filter_idx.and_then(|i| rest.get(i + 1).copied());
+            let host_idx = rest.iter().position(|&s| s == "--host");
+            let host = host_idx.and_then(|i| rest.get(i + 1).copied());
+            let type_idx = rest.iter().position(|&s| s == "--type");
+            let rtype = type_idx.and_then(|i| rest.get(i + 1).copied());
+            let mut cmd = json!({ "id": id, "action": "networkdump", "outputPath": out_path });
+            if let Some(f) = filter {
+                cmd["filter"] = json!(f);
+            }
+            if let Some(h) = host {
+                cmd["host"] = json!(h);
+            }
+            if let Some(t) = rtype {
+                cmd["type"] = json!(t);
+            }
+            if redact {
+                cmd["redact"] = json!(true);
+            }
+            Ok(cmd)
         }
         Some(sub) => Err(ParseError::UnknownSubcommand {
             subcommand: sub.to_string(),

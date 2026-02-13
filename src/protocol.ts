@@ -674,6 +674,10 @@ const responseBodySchema = baseCommandSchema.extend({
 const networkDumpSchema = baseCommandSchema.extend({
   action: z.literal('networkdump'),
   outputPath: z.string().min(1),
+  filter: z.string().optional(),
+  host: z.string().optional(),
+  type: z.string().optional(),
+  redact: z.boolean().optional(),
 });
 
 // Screencast schemas for streaming browser viewport

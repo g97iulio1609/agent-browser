@@ -2171,7 +2171,13 @@ async function handleNetworkDump(
   command: NetworkDumpCommand,
   browser: BrowserManager
 ): Promise<Response> {
-  const requests = browser.getRequests();
+  browser.startRequestTracking();
+  const requests = browser.getRequests({
+    filter: command.filter,
+    host: command.host,
+    type: command.type,
+    redact: command.redact,
+  });
   const outputDir = path.dirname(command.outputPath);
   mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(command.outputPath, JSON.stringify({ requests }, null, 2));

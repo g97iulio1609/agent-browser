@@ -492,6 +492,10 @@ export interface ResponseBodyCommand extends BaseCommand {
 export interface NetworkDumpCommand extends BaseCommand {
   action: 'networkdump';
   outputPath: string;
+  filter?: string;
+  host?: string;
+  type?: string;
+  redact?: boolean;
 }
 
 // Screencast commands for streaming browser viewport

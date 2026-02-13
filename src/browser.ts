@@ -346,7 +346,11 @@ export class BrowserManager {
   startRequestTracking(): void {
     if (this.isTrackingRequests) return;
     this.isTrackingRequests = true;
-    const page = this.getPage();
+    // Attach to current page
+    this.attachRequestListeners(this.getPage());
+  }
+
+  private attachRequestListeners(page: Page): void {
     const requestMap = new WeakMap<Request, number>();
     page.on('request', (request: Request) => {
       const id = ++this.requestIdCounter;
@@ -1605,6 +1609,10 @@ export class BrowserManager {
         }
       }
     });
+
+    if (this.isTrackingRequests) {
+      this.attachRequestListeners(page);
+    }
   }
 
   /**
