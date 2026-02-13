@@ -248,8 +248,15 @@ export class BrowserManager {
    * Get the current active page, throws if not launched
    */
   getPage(): Page {
+    if (!this.isLaunched()) {
+      const wasConnected = this.browser !== null || (this.contexts && this.contexts.length > 0);
+      if (wasConnected) {
+        throw new Error('Browser was closed externally. Run the "launch" command to restart.');
+      }
+      throw new Error('Browser not launched. Call "launch" first.');
+    }
     if (this.pages.length === 0) {
-      throw new Error('Browser not launched. Call launch first.');
+      throw new Error('Browser not launched. Call "launch" first.');
     }
     return this.pages[this.activePageIndex];
   }
