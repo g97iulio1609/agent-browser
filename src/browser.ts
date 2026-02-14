@@ -96,6 +96,7 @@ export class BrowserManager {
   private refMap: RefMap = {};
   private lastSnapshot: string = '';
   private scopedHeaderRoutes: Map<string, (route: Route) => Promise<void>> = new Map();
+  private stealthEnabled: boolean = false;
 
   // CDP session for screencast and input injection
   private cdpSession: CDPSession | null = null;
@@ -230,6 +231,9 @@ export class BrowserManager {
     } else if (this.browser) {
       context = await this.browser.newContext();
       context.setDefaultTimeout(60000);
+      if (this.stealthEnabled) {
+        await this.applyStealthEvasions(context);
+      }
       this.contexts.push(context);
       this.setupContextTracking(context);
     } else {
@@ -1165,6 +1169,7 @@ export class BrowserManager {
       ? ['--allow-file-access-from-files', '--allow-file-access']
       : [];
     const stealthArgs = options.stealth ? ['--disable-blink-features=AutomationControlled'] : [];
+    this.stealthEnabled = options.stealth ?? false;
     const combinedArgs = [...fileAccessArgs, ...stealthArgs];
     const baseArgs = options.args
       ? [...combinedArgs, ...options.args]
@@ -1355,6 +1360,16 @@ export class BrowserManager {
         if (parameter === 37446) return 'Intel Iris OpenGL Engine';
         return getParameter.call(this, parameter);
       };
+
+      // Also patch WebGL2 if available
+      if (typeof WebGL2RenderingContext !== 'undefined') {
+        const getParameter2 = WebGL2RenderingContext.prototype.getParameter;
+        WebGL2RenderingContext.prototype.getParameter = function(parameter) {
+          if (parameter === 37445) return 'Intel Inc.';
+          if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+          return getParameter2.call(this, parameter);
+        };
+      }
     `);
   }
 
@@ -1661,6 +1676,9 @@ export class BrowserManager {
       viewport: viewport ?? { width: 1280, height: 720 },
     });
     context.setDefaultTimeout(60000);
+    if (this.stealthEnabled) {
+      await this.applyStealthEvasions(context);
+    }
     this.contexts.push(context);
     this.setupContextTracking(context);
 
