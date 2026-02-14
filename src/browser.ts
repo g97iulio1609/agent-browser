@@ -2052,6 +2052,9 @@ export class BrowserManager {
       storageState,
     });
     this.recordingContext.setDefaultTimeout(10000);
+    if (this.stealthEnabled) {
+      await this.applyStealthEvasions(this.recordingContext);
+    }
 
     // Create a page in the recording context
     this.recordingPage = await this.recordingContext.newPage();
