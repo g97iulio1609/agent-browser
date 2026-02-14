@@ -643,6 +643,8 @@ async function handleSnapshot(
     maxDepth?: number;
     compact?: boolean;
     selector?: string;
+    diff?: boolean;
+    output?: string;
   },
   browser: BrowserManager
 ): Promise<Response<SnapshotData>> {
@@ -655,6 +657,34 @@ async function handleSnapshot(
     selector: command.selector,
   });
 
+  const snapshot = tree || 'Empty page';
+
+  // Incremental diff: only return changed lines
+  if (command.diff) {
+    const lastSnapshot = browser.getLastSnapshot();
+    if (lastSnapshot) {
+      const oldLines = new Set(lastSnapshot.split('\n'));
+      const newLines = snapshot.split('\n');
+      const newLinesSet = new Set(newLines);
+      const removed = lastSnapshot.split('\n').filter(line => !newLinesSet.has(line));
+      const added = newLines.filter(line => !oldLines.has(line));
+      const diffOutput = [
+        ...removed.map(l => `- ${l}`),
+        ...added.map(l => `+ ${l}`),
+      ].join('\n');
+      return successResponse(command.id, { snapshot: diffOutput || '(no changes)' });
+    }
+  }
+
+  // Save to file instead of returning full snapshot
+  if (command.output) {
+    const fs = await import('fs');
+    const path = await import('path');
+    const resolvedPath = path.resolve(command.output);
+    fs.writeFileSync(resolvedPath, snapshot, 'utf-8');
+    return successResponse(command.id, { saved: resolvedPath, size: snapshot.length } as any);
+  }
+
   // Simplify refs for output (just role and name)
   const simpleRefs: Record<string, { role: string; name?: string }> = {};
   for (const [ref, data] of Object.entries(refs)) {
@@ -662,7 +692,7 @@ async function handleSnapshot(
   }
 
   return successResponse(command.id, {
-    snapshot: tree || 'Empty page',
+    snapshot,
     refs: Object.keys(simpleRefs).length > 0 ? simpleRefs : undefined,
   });
 }
