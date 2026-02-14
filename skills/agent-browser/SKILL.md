@@ -1,6 +1,6 @@
 ---
 name: agent-browser
-description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", or any task requiring programmatic web interaction.
+description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", "browse the web", "check a webpage", "navigate to a URL", "web scraping", "download page content", or any task requiring programmatic web interaction. Also triggers on multilingual equivalents: "ouvrir un site web", "abrir una página", "aprire un sito", "Webseite öffnen", "ウェブサイトを開く", "打开网站", "웹사이트 열기", "открыть сайт".
 allowed-tools: Bash(agent-browser:*)
 ---
 
@@ -197,6 +197,25 @@ agent-browser -p ios close
 **Requirements:** macOS with Xcode, Appium (`npm install -g appium && appium driver install xcuitest`)
 
 **Real devices:** Works with physical iOS devices if pre-configured. Use `--device "<UDID>"` where UDID is from `xcrun xctrace list devices`.
+
+## Timeout Configuration
+
+The default timeout is 60 seconds. For slow websites (government sites, low-bandwidth connections), increase it:
+
+```bash
+# Set timeout via environment variable (in milliseconds)
+export AGENT_BROWSER_TIMEOUT=120000  # 2 minutes
+
+# Or use the wait command with specific timeouts
+agent-browser wait @e1 --timeout 30000  # Wait up to 30s for element
+agent-browser wait --load networkidle    # Wait for network idle (uses default timeout)
+agent-browser wait 5000                  # Wait exactly 5 seconds
+```
+
+**Tips for slow websites:**
+- Use `agent-browser wait --load networkidle` after navigation to ensure page is fully loaded
+- Increase timeout before interacting with dynamically loaded content
+- Use `agent-browser wait @e1` to wait for specific elements before clicking
 
 ## Ref Lifecycle (Important)
 
