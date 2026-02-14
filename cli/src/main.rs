@@ -282,6 +282,11 @@ fn main() {
             },
             flags.ignore_https_errors.then_some("--ignore-https-errors"),
             flags.cli_allow_file_access.then_some("--allow-file-access"),
+            if flags.cli_browser {
+                Some("--browser")
+            } else {
+                None
+            },
         ]
         .into_iter()
         .flatten()

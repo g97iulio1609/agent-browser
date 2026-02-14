@@ -35,6 +35,7 @@ pub struct Flags {
     pub cli_proxy: bool,
     pub cli_proxy_bypass: bool,
     pub cli_allow_file_access: bool,
+    pub cli_browser: bool,
 }
 
 pub fn parse_flags(args: &[String]) -> Flags {
@@ -81,6 +82,7 @@ pub fn parse_flags(args: &[String]) -> Flags {
         cli_proxy: false,
         cli_proxy_bypass: false,
         cli_allow_file_access: false,
+        cli_browser: false,
     };
 
     let mut i = 0;
@@ -173,6 +175,7 @@ pub fn parse_flags(args: &[String]) -> Flags {
             "--browser" => {
                 if let Some(b) = args.get(i + 1) {
                     flags.browser = Some(b.clone());
+                    flags.cli_browser = true;
                     i += 1;
                 }
             }
