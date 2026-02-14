@@ -198,24 +198,25 @@ agent-browser -p ios close
 
 **Real devices:** Works with physical iOS devices if pre-configured. Use `--device "<UDID>"` where UDID is from `xcrun xctrace list devices`.
 
-## Timeout Configuration
+## Handling Slow Websites
 
-The default timeout is 60 seconds. For slow websites (government sites, low-bandwidth connections), increase it:
+For slow websites (government sites, low-bandwidth connections), use explicit wait commands:
 
 ```bash
-# Set timeout via environment variable (in milliseconds)
-export AGENT_BROWSER_TIMEOUT=120000  # 2 minutes
+# Wait for network idle after navigation
+agent-browser wait --load networkidle
 
-# Or use the wait command with specific timeouts
-agent-browser wait @e1 --timeout 30000  # Wait up to 30s for element
-agent-browser wait --load networkidle    # Wait for network idle (uses default timeout)
-agent-browser wait 5000                  # Wait exactly 5 seconds
+# Wait for a specific element to appear
+agent-browser wait @e1
+
+# Wait a fixed duration (milliseconds)
+agent-browser wait 5000
 ```
 
 **Tips for slow websites:**
 - Use `agent-browser wait --load networkidle` after navigation to ensure page is fully loaded
-- Increase timeout before interacting with dynamically loaded content
-- Use `agent-browser wait @e1` to wait for specific elements before clicking
+- Use `agent-browser wait @e1` to wait for specific elements before interacting
+- Chain waits: navigate → wait for network idle → wait for element → interact
 
 ## Ref Lifecycle (Important)
 
